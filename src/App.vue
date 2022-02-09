@@ -11,6 +11,7 @@
               <input
                 v-model="ticker"
                 @keyup.enter="addTicker"
+                @input="autocompleteTicker"
                 type="text"
                 name="wallet"
                 id="wallet"
@@ -19,30 +20,21 @@
               />
             </div>
             <div
-              class="flex bg-white shadow-md p-1 rounded-md shadow-md flex-wrap"
+              class="flex bg-white shadow-md p-1 rounded-md flex-wrap"
+              v-if="similarTickers.length"
             >
               <span
                 class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
+                v-for="similar in similarTickers"
+                :key="similar"
+                @click="addSimilarTicker(similar)"
               >
-                BTC
-              </span>
-              <span
-                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-              >
-                DOGE
-              </span>
-              <span
-                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-              >
-                BCH
-              </span>
-              <span
-                class="inline-flex items-center px-2 m-1 rounded-md text-xs font-medium bg-gray-300 text-gray-800 cursor-pointer"
-              >
-                CHD
+                {{ similar }}
               </span>
             </div>
-            <div class="text-sm text-red-600">Такой тикер уже добавлен</div>
+            <div v-if="isExist" class="text-sm text-red-600">
+              Такой тикер уже добавлен
+            </div>
           </div>
         </div>
         <button
@@ -160,30 +152,64 @@ export default {
       tickers: [],
       sel: null,
       graph: [],
+      isExist: false,
+      similarTickers: [],
     };
   },
+  created: async function () {
+    const _allTickers = await fetch(
+      "https://min-api.cryptocompare.com/data/all/coinlist?summary=true"
+    );
+    const allTickers = await _allTickers.json();
+    localStorage.setItem("full_ticker_list", JSON.stringify(allTickers));
+  },
   methods: {
-    addTicker() {
-      const newTicker = {
-        name: this.ticker,
-        value: "-",
-      };
-      this.tickers.push(newTicker);
-      this.ticker = "";
-      const APIkey =
-        "3a0490fa1b3f8e438d49c45b34a0a150464bb91eb10c45ae7388d5a642673752";
-      setInterval(async () => {
-        const _data = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${newTicker.name}&tsyms=USD&api_key=${APIkey}`
+    addSimilarTicker(ticker) {
+      this.ticker = ticker;
+      this.addTicker();
+    },
+    autocompleteTicker() {
+      this.similarTickers = [];
+      this.isExist = false;
+      let allTickers = localStorage.getItem("full_ticker_list");
+      if (allTickers) {
+        allTickers = JSON.parse(allTickers);
+        const similarTickers = Object.values(allTickers.Data).filter((item) =>
+          item.FullName.toLowerCase().includes(this.ticker.toLowerCase())
         );
-        const data = await _data.json();
-        console.log(data);
-        this.tickers.find((item) => item.name === newTicker.name).value =
-          data.USD;
-        if (this.sel?.name === newTicker.name) {
-          this.graph.push(data.USD);
+        if (similarTickers.length) {
+          this.similarTickers = similarTickers.map((item) => item.Symbol);
+          this.similarTickers.splice(4);
         }
-      }, 3000);
+      }
+    },
+    addTicker() {
+      this.isExist = this.tickers.filter(
+        (item) => item.name.toLowerCase() === this.ticker.toLowerCase()
+      ).length;
+      if (!this.isExist) {
+        const newTicker = {
+          name: this.ticker,
+          value: "-",
+        };
+        this.tickers.push(newTicker);
+        this.ticker = "";
+        this.similarTickers = [];
+        const APIkey =
+          "3a0490fa1b3f8e438d49c45b34a0a150464bb91eb10c45ae7388d5a642673752";
+        setInterval(async () => {
+          const _data = await fetch(
+            `https://min-api.cryptocompare.com/data/price?fsym=${newTicker.name}&tsyms=USD&api_key=${APIkey}`
+          );
+          const data = await _data.json();
+          console.log(data);
+          this.tickers.find((item) => item.name === newTicker.name).value =
+            data.USD;
+          if (this.sel?.name === newTicker.name) {
+            this.graph.push(data.USD);
+          }
+        }, 3000);
+      }
     },
     removeTicker(t) {
       this.tickers = this.tickers.filter((item) => item !== t);
@@ -206,4 +232,3 @@ export default {
   },
 };
 </script>
-
